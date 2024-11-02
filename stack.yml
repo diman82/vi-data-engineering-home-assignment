@@ -1,71 +1,134 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Resources:
-  MyGlueDatabase:
-    Type: AWS::Glue::Database
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
     Properties:
-      CatalogId: !Ref AWS::AccountId
-      DatabaseInput:
-        Name: stock_analysis_db
+      BucketName: "data-engineer-assignment-dimamed"
 
-  MyGlueJob:
+  GlueCatalogDatabase:
+    Type: "AWS::Glue::Database"
+    Properties:
+      CatalogId: !Ref "AWS::AccountId"
+      DatabaseInput:
+        Name: "stock_analysis_dimamed_db"
+
+  GlueJob:
     Type: AWS::Glue::Job
     Properties:
       Name: stock-analysis-job
       Role: !Ref GlueServiceRole
       Command:
         Name: glueetl
-        ScriptLocation: 's3://data-engineer-assignment-dimamed/scripts/main.py'
+        ScriptLocation: 's3://${S3Bucket}/scripts/main.py'
         PythonVersion: '3'
       DefaultArguments:
+        "--TempDir": !Sub "s3://${S3Bucket}/temp/"
         "--job-bookmark-option": "job-bookmark-enable"
+        "--enable-glue-datacatalog": "true"
+        "--log-level": "INFO"
       MaxRetries: 1
+      GlueVersion: "3.0"
+      NumberOfWorkers: 2
+      WorkerType: "G.1X"
       ExecutionProperty:
         MaxConcurrentRuns: 2
 
-  MyGlueCrawler:
-    Type: AWS::Glue::Crawler
-    Properties:
-      Role: !Ref GlueServiceRole
-      DatabaseName: !Ref MyGlueDatabase
-      Targets:
-        S3Targets:
-          - Path: 's3://data-engineer-assignment-dimamed/outputs'
-      TablePrefix: stock_data_
-      SchemaChangePolicy:
-        UpdateBehavior: LOG
-        DeleteBehavior: DEPRECATE_IN_DATABASE
-
   GlueServiceRole:
-    Type: AWS::IAM::Role
+    Type: "AWS::IAM::Role"
     Properties:
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
-          - Effect: Allow
+          - Effect: "Allow"
             Principal:
-              Service: glue.amazonaws.com
-            Action: 'sts:AssumeRole'
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess
-        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
-        - arn:aws:iam::aws:policy/AmazonAthenaFullAccess
+              Service:
+                - "glue.amazonaws.com"
+            Action: "sts:AssumeRole"
       Policies:
-        - PolicyName: GluePolicy
+        - PolicyName: "GlueJobPolicy"
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
-              - Effect: Allow
+              - Effect: "Allow"
                 Action:
-                  - glue:*
-                Resource: '*'
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "logs:*"
+                  - "glue:*"
+                Resource: "*"
+
+  AverageDailyReturnCrawler:
+    Type: "AWS::Glue::Crawler"
+    Properties:
+      Name: "average-return-crawler-dimamed"
+      Role: !GetAtt GlueServiceRole.Arn
+      DatabaseName: !Ref GlueCatalogDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://${S3Bucket}/result/average_daily_return/"
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "DEPRECATE_IN_DATABASE"
+
+  HighestWorthCrawler:
+    Type: "AWS::Glue::Crawler"
+    Properties:
+      Name: "highest-worth-crawler-dimamed"
+      Role: !GetAtt GlueServiceRole.Arn
+      DatabaseName: !Ref GlueCatalogDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://${S3Bucket}/result/highest_worth_stock/"
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "DEPRECATE_IN_DATABASE"
+
+  MostVolatileCrawler:
+    Type: "AWS::Glue::Crawler"
+    Properties:
+      Name: "most-volatile-crawler-dimamed"
+      Role: !GetAtt GlueServiceRole.Arn
+      DatabaseName: !Ref GlueCatalogDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://${S3Bucket}/result/most_volatile_stock/"
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "DEPRECATE_IN_DATABASE"
+
+  Top30DayReturnCrawler:
+    Type: "AWS::Glue::Crawler"
+    Properties:
+      Name: "top-30-day-return-crawler-dimamed"
+      Role: !GetAtt GlueServiceRole.Arn
+      DatabaseName: !Ref GlueCatalogDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://${S3Bucket}/result/top_30_day_returns/"
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "DEPRECATE_IN_DATABASE"
 
 Outputs:
+  GlueCatalogDatabaseName:
+    Description: "Glue Catalog Database Name"
+    Value: !Ref GlueCatalogDatabase
   GlueJobName:
     Description: "Glue Job Name"
-    Value: !Ref MyGlueJob
-  GlueDatabaseName:
-    Description: "Glue Database Name"
-    Value: !Ref MyGlueDatabase
-  GlueCrawlerName:
-    Description: "Glue Crawler Name"
-    Value: !Ref MyGlueCrawler
+    Value: !Ref GlueJob
+  S3BucketName:
+    Description: "S3 Bucket Name"
+    Value: !Ref S3Bucket
+
+  AverageDailyReturnCrawlerName:
+    Description: "Glue Crawler for Average Return"
+    Value: !Ref AverageDailyReturnCrawler
+  HighestWorthCrawlerName:
+    Description: "Glue Crawler for Highest Worth Stock"
+    Value: !Ref HighestWorthCrawler
+  MostVolatileCrawlerName:
+    Description: "Glue Crawler for Most Volatile Stock"
+    Value: !Ref MostVolatileCrawler
+  Top30DayReturnCrawlerName:
+    Description: "Glue Crawler for Top 30 Day Return"
+    Value: !Ref Top30DayReturnCrawler

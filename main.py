@@ -8,6 +8,7 @@ import pyspark
 import pandas as pd
 
 from dotenv import load_dotenv
+from pyspark import SparkContext
 
 from pyspark.sql import SparkSession, Window
 from pyspark.sql.functions import col, lag, avg, stddev, expr
@@ -21,6 +22,10 @@ BUCKET_NAME = "data-engineer-assignment-dimamed"
 
 def main():
     def is_possible_cloud() -> bool:
+        """
+        Check if the script is running on a cloud environment
+        :return: Boolean indicating whether the script is running on a cloud environment
+        """
         # Common hostnames/IP ranges for cloud providers could be checked here
         cloud_keywords = ['amazon', 'aws', 'google', 'azure', 'cloud', 'compute', 'ec2', 'gcp', 'cloudapp', 'heroku']
         hostname = socket.gethostname().lower()
@@ -54,8 +59,7 @@ def main():
             logging.error(f"An error occurred: {str(e)}")
             raise e
 
-    is_running_on_cloud = is_possible_cloud()
-    if not is_running_on_cloud:
+    if not is_possible_cloud():
         logging.info("The script is not running on a cloud environment, loading local .env file")
         load_dotenv()
         # Retrieve AWS credentials from environment variables
@@ -70,33 +74,37 @@ def main():
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
             region_name=AWS_REGION
         )
+        spark = ((SparkSession.builder
+                  .appName('vi-data-engineering-home-assignment')
+                  .config("spark.driver.host", "localhost"))
+                 # .config('spark.jars', f"{os.path.join(rootpath.detect(), 'hadoop-bare-naked-local-fs-0.1.0.jar')}")
+                 # .config("spark.jars.packages", "org.apache.spark:spark-hadoop-cloud_2.13-3.5.3")
+                 # .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+                 # .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.3.6,"
+                 #         "com.amazonaws:aws-java-sdk-bundle:2.29.3")
+                 .master("local[*]")
+                 .getOrCreate())
+        spark.sparkContext.setLogLevel("ERROR")
+        spark.sparkContext._jsc.hadoopConfiguration().set("spark.hadoop.fs.file.impl",
+                                                          "org.apache.hadoop.fs.LocalFileSystem")
+
+        # Load input CSV file from local file system
+        df_source = spark.read.csv('stocks_data.csv', header=True, inferSchema=True)
+
     else:
         logging.info("The script is running on a cloud environment, using IAM role for authentication")
+        from awsglue.context import GlueContext
+        glueContext = GlueContext(SparkContext.getOrCreate())
+        spark = glueContext.spark_session
         s3_client = boto3.client('s3')
 
-    spark = ((SparkSession.builder
-              .appName('vi-data-engineering-home-assignment')
-              .config("spark.driver.host", "localhost"))
-             # .config('spark.jars', f"{os.path.join(rootpath.detect(), 'hadoop-bare-naked-local-fs-0.1.0.jar')}")
-             # .config("spark.jars.packages", "org.apache.spark:spark-hadoop-cloud_2.13-3.5.3")
-             # .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-             # .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.3.6,"
-             #         "com.amazonaws:aws-java-sdk-bundle:2.29.3")
-             .master("local[*]")
-             .getOrCreate())
-    spark.sparkContext.setLogLevel("ERROR")
-    spark.sparkContext._jsc.hadoopConfiguration().set("spark.hadoop.fs.file.impl",
-                                                      "org.apache.hadoop.fs.LocalFileSystem")
-    # if is_running_on_cloud:
-    #     spark._jsc.hadoopConfiguration().set("com.amazonaws.services.s3.enableV4", "true")
-    #     spark._jsc.hadoopConfiguration().set("fs.s3a.endpoint", "s3.amazonaws.com")
-    #     spark._jsc.hadoopConfiguration().set("fs.s3a.access.key", os.getenv('AWS_ACCESS_KEY_ID'))
-    #     spark._jsc.hadoopConfiguration().set("fs.s3a.secret.key", os.getenv('AWS_SECRET_ACCESS_KEY'))
-    #     spark._jsc.hadoopConfiguration().set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-    #     spark._jsc.hadoopConfiguration().set("fs.AbstractFileSystem.s3a.impl", "org.apache.hadoop.fs.s3a.S3A")
-
-    # Load the CSV file
-    df_source = spark.read.csv('stocks_data.csv', header=True, inferSchema=True)
+        # Load input CSV file from S3 and convert to Spark DataFrame
+        input_path = f"s3://{BUCKET_NAME}/input/stocks_data.csv"
+        try:
+            df_source = spark.read.csv(input_path, header=True, inferSchema=True)
+        except Exception as e:
+            logging.error(f"Error loading data from {input_path}: {str(e)}")
+            raise e
 
     # 1. ** Compute the Average Daily Return of All Stocks **
     # Compute daily returns for each stock
@@ -139,12 +147,11 @@ def main():
     top_30_day_returns = df.orderBy(col('30_day_return').desc()).select('ticker', 'Date').limit(3)
     top_30_day_returns.show()
 
-
     # Save to S3
-    write_to_s3(s3_client, average_daily_return, 'result-data/'+'average_daily_return.csv')
-    write_to_s3(s3_client, highest_worth_stock, 'result-data/'+'highest_worth_stock.csv')
-    write_to_s3(s3_client, most_volatile_stock, 'result-data/'+'most_volatile_stock.csv')
-    write_to_s3(s3_client, top_30_day_returns, 'result-data/'+'top_30_day_returns.csv')
+    write_to_s3(s3_client, average_daily_return, 'result/average_daily_return/'+'average_daily_return.csv')
+    write_to_s3(s3_client, highest_worth_stock, 'result/highest_worth_stock/'+'highest_worth_stock.csv')
+    write_to_s3(s3_client, most_volatile_stock, 'result/most_volatile_stock/'+'most_volatile_stock.csv')
+    write_to_s3(s3_client, top_30_day_returns, 'result/top_30_day_returns/'+'top_30_day_returns.csv')
 
 
 if __name__ == "__main__":
