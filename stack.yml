@@ -1,48 +1,71 @@
-AWSTemplateFormatVersion: "2010-09-09"
-Description: CloudFormation template to create a Lambda function that prints "Hello, World!".
-
+AWSTemplateFormatVersion: '2010-09-09'
 Resources:
-    LambdaExecutionRole:
-        Type: "AWS::IAM::Role"
-        Properties:
-            AssumeRolePolicyDocument:
-                Version: "2012-10-17"
-                Statement:
-                    - Effect: "Allow"
-                      Principal:
-                          Service:
-                              - "lambda.amazonaws.com"
-                      Action: "sts:AssumeRole"
-            Policies:
-                - PolicyName: "LambdaExecutionPolicy"
-                  PolicyDocument:
-                      Version: "2012-10-17"
-                      Statement:
-                          - Effect: "Allow"
-                            Action:
-                                - "logs:CreateLogGroup"
-                                - "logs:CreateLogStream"
-                                - "logs:PutLogEvents"
-                            Resource: "arn:aws:logs:*:*:*"
+  MyGlueDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: stock_analysis_db
 
-    HelloWorldLambda:
-        Type: "AWS::Lambda::Function"
-        Properties:
-            FunctionName: "HelloWorldFunction"
-            Handler: "index.handler"
-            Role: !GetAtt LambdaExecutionRole.Arn
-            Runtime: "python3.9"
-            Code:
-                ZipFile: |
-                    def handler(event, context):
-                        print("Hello, World!")
-            Timeout: 30
-            MemorySize: 128
+  MyGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: stock-analysis-job
+      Role: !Ref GlueServiceRole
+      Command:
+        Name: glueetl
+        ScriptLocation: 's3://data-engineer-assignment-dimamed/scripts/main.py'
+        PythonVersion: '3'
+      DefaultArguments:
+        "--job-bookmark-option": "job-bookmark-enable"
+      MaxRetries: 1
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+
+  MyGlueCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Role: !Ref GlueServiceRole
+      DatabaseName: !Ref MyGlueDatabase
+      Targets:
+        S3Targets:
+          - Path: 's3://data-engineer-assignment-dimamed/outputs'
+      TablePrefix: stock_data_
+      SchemaChangePolicy:
+        UpdateBehavior: LOG
+        DeleteBehavior: DEPRECATE_IN_DATABASE
+
+  GlueServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+        - arn:aws:iam::aws:policy/AmazonAthenaFullAccess
+      Policies:
+        - PolicyName: GluePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - glue:*
+                Resource: '*'
 
 Outputs:
-    LambdaFunctionName:
-        Description: "Name of the Lambda function created"
-        Value: !Ref HelloWorldLambda
-    LambdaExecutionRoleArn:
-        Description: "ARN of the Lambda execution role"
-        Value: !GetAtt LambdaExecutionRole.Arn
+  GlueJobName:
+    Description: "Glue Job Name"
+    Value: !Ref MyGlueJob
+  GlueDatabaseName:
+    Description: "Glue Database Name"
+    Value: !Ref MyGlueDatabase
+  GlueCrawlerName:
+    Description: "Glue Crawler Name"
+    Value: !Ref MyGlueCrawler
