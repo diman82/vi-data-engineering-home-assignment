@@ -1,0 +1,6 @@
+dataclasses-json
+pyspark~=3.5.3
+pytest
+boto3
+pandas
+python-dotenv
