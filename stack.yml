@@ -5,13 +5,13 @@ Parameters:
   AWSS3Bucket:
     Description: Personal bucket that stores various data & configuration files
     Type: String
-    Default: "data-engineer-assignment-dimamed"
+    Default: "data-engineer-assignment-dimamed-new"
 
 Resources:
   S3Bucket:
     Type: "AWS::S3::Bucket"
     Properties:
-      BucketName: "data-engineer-assignment-dimamed"
+      BucketName: "data-engineer-assignment-dimamed-new"
 
   GlueCatalogDatabase:
     Type: "AWS::Glue::Database"
@@ -27,10 +27,10 @@ Resources:
       Role: !Ref GlueServiceRole
       Command:
         Name: glueetl
-        ScriptLocation: 's3://${S3Bucket}/scripts/main.py'
+        ScriptLocation: 's3://data-engineer-assignment-dimamed-new/scripts/main.py'
         PythonVersion: '3'
       DefaultArguments:
-        "--TempDir": !Sub "s3://${S3Bucket}/temp/"
+        "--TempDir": !Sub "s3://data-engineer-assignment-dimamed-new/temp/"
         "--job-bookmark-option": "job-bookmark-enable"
         "--enable-glue-datacatalog": "true"
         "--log-level": "INFO"
@@ -77,7 +77,7 @@ Resources:
       DatabaseName: !Ref GlueCatalogDatabase
       Targets:
         S3Targets:
-          - Path: !Sub "s3://${S3Bucket}/result/average_daily_return/"
+          - Path: !Sub "s3://data-engineer-assignment-dimamed-new/result/average_daily_return/"
       SchemaChangePolicy:
         UpdateBehavior: "UPDATE_IN_DATABASE"
         DeleteBehavior: "DEPRECATE_IN_DATABASE"
@@ -90,7 +90,7 @@ Resources:
       DatabaseName: !Ref GlueCatalogDatabase
       Targets:
         S3Targets:
-          - Path: !Sub "s3://${S3Bucket}/result/highest_worth_stock/"
+          - Path: !Sub "s3://data-engineer-assignment-dimamed-new/result/highest_worth_stock/"
       SchemaChangePolicy:
         UpdateBehavior: "UPDATE_IN_DATABASE"
         DeleteBehavior: "DEPRECATE_IN_DATABASE"
@@ -103,7 +103,7 @@ Resources:
       DatabaseName: !Ref GlueCatalogDatabase
       Targets:
         S3Targets:
-          - Path: !Sub "s3://${S3Bucket}/result/most_volatile_stock/"
+          - Path: !Sub "s3://data-engineer-assignment-dimamed-new/result/most_volatile_stock/"
       SchemaChangePolicy:
         UpdateBehavior: "UPDATE_IN_DATABASE"
         DeleteBehavior: "DEPRECATE_IN_DATABASE"
@@ -116,7 +116,7 @@ Resources:
       DatabaseName: !Ref GlueCatalogDatabase
       Targets:
         S3Targets:
-          - Path: !Sub "s3://${S3Bucket}/result/top_30_day_returns/"
+          - Path: !Sub "s3://data-engineer-assignment-dimamed-new/result/top_30_day_returns/"
       SchemaChangePolicy:
         UpdateBehavior: "UPDATE_IN_DATABASE"
         DeleteBehavior: "DEPRECATE_IN_DATABASE"

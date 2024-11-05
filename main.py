@@ -7,7 +7,6 @@ import boto3
 import pyspark
 import pandas as pd
 
-from dotenv import load_dotenv
 from pyspark import SparkContext
 
 from pyspark.sql import SparkSession, Window
@@ -17,7 +16,7 @@ from pyspark.sql.functions import col, lag, avg, stddev, expr
 logging.basicConfig(filename='pyspark_engine.log', level=logging.WARN,
                     format='%(asctime)s - %(levelname)s: %(message)s')
 
-BUCKET_NAME = "data-engineer-assignment-dimamed"
+BUCKET_NAME = "data-engineer-assignment-dimamed-new"
 
 
 def main():
@@ -61,6 +60,7 @@ def main():
 
     if not is_possible_cloud():
         logging.info("The script is not running on a cloud environment, loading local .env file")
+        from dotenv import load_dotenv
         load_dotenv()
         # Retrieve AWS credentials from environment variables
         AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
