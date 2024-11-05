@@ -1,4 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation Template to create AWS Glue Crawler, Glue Job, and IAM Role.'
+
+Parameters:
+  AWSS3Bucket:
+    Description: Personal bucket that stores various data & configuration files
+    Type: String
+    Default: "data-engineer-assignment-dimamed"
+
 Resources:
   S3Bucket:
     Type: "AWS::S3::Bucket"
@@ -31,7 +39,7 @@ Resources:
       NumberOfWorkers: 2
       WorkerType: "G.1X"
       ExecutionProperty:
-        MaxConcurrentRuns: 2
+        MaxConcurrentRuns: 1
 
   GlueServiceRole:
     Type: "AWS::IAM::Role"
@@ -44,6 +52,10 @@ Resources:
               Service:
                 - "glue.amazonaws.com"
             Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      Path: "/"
       Policies:
         - PolicyName: "GlueJobPolicy"
           PolicyDocument:
@@ -118,7 +130,7 @@ Outputs:
     Value: !Ref GlueJob
   S3BucketName:
     Description: "S3 Bucket Name"
-    Value: !Ref S3Bucket
+    Value: !Ref AWSS3Bucket
 
   AverageDailyReturnCrawlerName:
     Description: "Glue Crawler for Average Return"
