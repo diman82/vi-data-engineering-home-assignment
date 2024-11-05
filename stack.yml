@@ -23,7 +23,7 @@ Resources:
   GlueJob:
     Type: AWS::Glue::Job
     Properties:
-      Name: stock-analysis-job
+      Name: stock-analysis-job-dimamed
       Role: !Ref GlueServiceRole
       Command:
         Name: glueetl
